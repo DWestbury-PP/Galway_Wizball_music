@@ -92,24 +92,33 @@ becomes the opcode of a harmless `BIT absolute` whose operand is the
 following 2-byte instruction. The jumps into `HANG0/HANG1/HANG2`,
 `StopCl/StartCl`, and `sh5/sh6` rely on this.
 
-### The implicit-CLC dispatch convention **(the subtle one)**
+### The `ADD` / `SUB` pseudo-instruction legacy
 
-Galway's music-engine source assumes that `ADC PCn` in the PC-advancement
-handlers (`addcN`, `addnN`, and the stack-saving `ADC PCn` inside
-`callN` / `forN`) executes with carry clear, even though the source writes
-no `CLC` before those instructions.
+Galway's music-engine source has many `ADC PCn` sites (in `addcN`, `addnN`,
+and the stack-saving `ADC PCn` inside `callN` / `forN`) that only give
+correct PC advances if carry is clear on entry — yet the source writes no
+`CLC` before them. The preceding dispatch `ADC #vtN-COM-1` in `read_byteN`
+always leaves C=1 for valid opcodes in `$C0..$EA`, so with plain 6502
+semantics every `lda #N / jmp addcN` advances PC by N+1 instead of N and
+the dispatcher silently skips the next opcode.
 
-The dispatch `ADC #vtN-COM-1` earlier in `read_byteN` always leaves C=1 for
-valid opcodes in the range `$C0..$EA`, and that carry leaks through the
-subsequent `STA` / `LDA` / `JMP (indirect)` into the handler. Without a
-`CLC`, every `lda #N / jmp addcN` advances PC by N+1 instead of N and the
-dispatcher silently skips the next opcode.
+Martin's 2026-04-20 update to `ocean_assembler_directives.txt` reveals why:
+the Ocean in-house assembler had two pseudo-instructions absent from the
+first release of the directives file:
 
-I don't know whether Ocean's 1987 assembler emitted implicit `CLC`s or
-whether Galway's original rig compensated some other way. The minimal fix in
-this port is an explicit `clc` at each of these sites, marked with
-`// PORT:` comments in `src/port/wizball.asm`. Input welcome if anyone
-recognises this convention from other Ocean source releases.
+> `ADD` — Packages a CLC with an ADC to save you some typing
+> `SUB` — Packages an SEC with an SBC to save you some typing
+
+Galway's original source almost certainly used `ADD PCn` at the affected
+sites. Ocean's assembler expanded each `ADD` to `CLC; ADC`, which is what
+the game binary actually executed. The version of `wizball.asm` shared
+here was transcribed to standard 6502 mnemonics (all `ADC`, no `ADD`), and
+in that conversion the implicit `CLC` was lost.
+
+The port inserts 12 explicit `clc` instructions — one at each site where
+Galway most likely wrote `ADD`. These are marked with `// PORT:` comments
+in `src/port/wizball.asm`. The result is byte-faithful to what Ocean's
+assembler would have produced from an `ADD`-containing original.
 
 ### Period-separated label names
 

@@ -1941,12 +1941,14 @@ crossedover0a: inc PC0+1
                bne read_byte0
 add3c0:        lda #3
 // PORT: Galway's dispatch `adc #vtN-COM-1` leaves carry=1 when it hands
-// control to a handler. If that handler ends with `jmp addcN` without first
-// clearing carry, the PC advance is off by +1 and the stream dispatcher
-// skips the next opcode entirely (e.g. `master2` after `fload2`). The
-// original Ocean source has the same structure; adding `clc` here is the
-// minimal fix that matches the intended byte counts encoded in every
-// `lda #N / jmp addcN` call site. Same fix applied to addc1/addc2/addnN.
+// control to a handler; without a `clc` here the advance is off by one and
+// the stream dispatcher silently skips the next opcode (e.g. `master2`
+// after `fload2`). Ocean's assembler supported an `ADD` pseudo-instruction
+// that expanded to `CLC;ADC` (documented in Martin's 2026-04-20 update to
+// ocean_assembler_directives.txt). The source shared here was transcribed
+// to plain `ADC`, so Galway's implicit CLC was lost — this explicit `clc`
+// restores it. Same fix applied at addc1/addc2/addn0/addn1/addn2 and at
+// the `adc PCn` inside call0/1/2 and for0/1/2.
 addc0:         clc
                adc PC0
                sta PC0
